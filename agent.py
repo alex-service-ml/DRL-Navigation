@@ -34,12 +34,12 @@ class BananAgent:
         self.action_size = action_size
 
         # Q-Network
-        self.qnetwork_local = BananaResNet(state_size, action_size).to(device)
+        self.qnetwork_local = BananaNet(state_size, action_size).to(device)
         if checkpoint_filename:
             print('Loading checkpoint', checkpoint_filename)
             checkpoint = torch.load(checkpoint_filename)
             self.qnetwork_local.load_state_dict(checkpoint)
-        self.qnetwork_target = BananaResNet(state_size, action_size).to(device)
+        self.qnetwork_target = BananaNet(state_size, action_size).to(device)
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
 
         # Replay memory
@@ -167,6 +167,7 @@ class ReplayBuffer:
             seed (int): random seed
         """
         self.action_size = action_size
+
         self.memory = deque(maxlen=buffer_size)
         self.batch_size = batch_size
         self.experience = namedtuple("Experience", field_names=["state", "action", "reward", "next_state", "done"])
