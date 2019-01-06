@@ -94,12 +94,9 @@ class BananAgent:
         states, actions, rewards, next_states, dones = experiences
 
         local_max_action = self.qnetwork_local(next_states).detach().max(1)[1].unsqueeze(1)
+
         outputs = self.qnetwork_target(next_states).detach()
-
         target_max = outputs.gather(1, local_max_action)
-
-        # target_max = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
-
         targets = rewards + gamma * target_max * (1 - dones)
 
         # forward pass local network
@@ -127,25 +124,17 @@ class BananAgent:
 
         # TODO: probably have to detach target_max?
         target_max = self.qnetwork_target(next_states).detach().max(1)[0].unsqueeze(1)
-        # print('target_max shape:', target_max.size())
-        # print('target_max:', target_max)
-        # print('rewards:', rewards)
         targets = rewards + gamma * target_max * (1 - dones)
 
         # forward pass local network
         output = self.qnetwork_local(states).gather(1, actions)
 
-        # print('targets', targets.size())
-        # print('output:', output.size())
-        # print('targets:', targets)
-        # print('output:', output)
         # calculate loss & gradient for local network
         self.optimizer.zero_grad()
         criterion = torch.nn.MSELoss()
         loss = criterion(output, targets)
         loss.backward()
         self.optimizer.step()
-        #
 
         # ------------------- update target network ------------------- #
         self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)
