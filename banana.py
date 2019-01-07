@@ -2,9 +2,18 @@ import numpy as np
 import torch
 import argparse
 import os
+import time
+
 from unityagents import UnityEnvironment
 
 from agent import BananAgent, ReplayBuffer
+
+action_strings = {
+    0: '^ FORWARD ',
+    1: 'v BACKWARD',
+    2: '< LEFT    ',
+    3: '> RIGHT   '
+}
 
 
 def parse_arguments():
@@ -20,6 +29,7 @@ def parse_arguments():
     parser.add_argument('--eps-min', type=float, help='Minimum epsilon value', default=0.01, required=False)
     parser.add_argument('--seed', type=int, help='RNG Seed', required=False)
     parser.add_argument('--evaluate', action='store_true', help='Run trained model in eval mode', default=False)
+    parser.add_argument('--slow', action='store_false', help='Run the game at normal speed', default=True)
     return parser.parse_args()
 
 
@@ -61,7 +71,7 @@ if __name__ == '__main__':
     max_score = 0
     scores = []
     for i_episode in range(args.episodes):
-        env_info = env.reset(train_mode=True)[brain_name]  # reset the environment
+        env_info = env.reset(train_mode=args.slow)[brain_name]  # reset the environment
         state = env_info.vector_observations[0]  # get the current state
         score = 0  # initialize the score
 
@@ -74,6 +84,8 @@ if __name__ == '__main__':
             done = env_info.local_done[0]  # see if episode has finished
             score += reward  # update the score
 
+            # Show action
+            print('\rScore: {}\tAction: {}'.format(score, action_strings[action]),  end="")
             # Learnin' time (sometimes)
             if not evaluate:
                 agent.step(state, action, reward, next_state, done)
@@ -90,8 +102,8 @@ if __name__ == '__main__':
             print("\nNew max score! {:.1f}".format(max_score))
             torch.save(agent.qnetwork_local.state_dict(), args.save_as)
             save_scores(args.save_as[:-4], scores)
-        print("\rEpisode {} Score: {:.1f} Avg: {:.2f} Eps: {:.2f}".format(i_episode, score, np.mean(scores[-100:]), epsilon), end="")
-
+        print("\rEpisode {} Score: {:.1f} Avg: {:.2f} Eps: {:.2f}".format(i_episode, score, np.mean(scores[-100:]), epsilon)) #, end="")
+        time.sleep(1)
     if not evaluate:
         save_scores(args.save_as[:-4], scores)
     else:
