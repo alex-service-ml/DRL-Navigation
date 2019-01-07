@@ -2,7 +2,7 @@ import numpy as np
 import random
 from collections import namedtuple, deque
 
-from model import BananaNet, BananaResNet
+from model import BananaNet
 
 import torch
 import torch.optim as optim

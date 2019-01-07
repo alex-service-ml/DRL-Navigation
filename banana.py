@@ -22,7 +22,7 @@ def parse_arguments():
     parser.add_argument('--save-as', help='Checkpoint to save as', default='checkpoint.pth', required=False)
     parser.add_argument('--batch-size', type=int, help='Minibatch size', default=64, required=False)
     parser.add_argument('--memory', type=int, help='Size of the memory buffer', default=10000, required=False)
-    parser.add_argument('--episodes', type=int, help='Number of episodes', default=10, required=False)
+    parser.add_argument('--episodes', type=int, help='Number of episodes', default=1000, required=False)
     parser.add_argument('--gamma', type=float, help='Discount rate', default=0.99, required=False)
     parser.add_argument('--eps', type=float, help='Initial epsilon value', default=1.0, required=False)
     parser.add_argument('--eps-decay', type=float, help='Decay rate of epsilon', default=0.995, required=False)
@@ -30,6 +30,7 @@ def parse_arguments():
     parser.add_argument('--seed', type=int, help='RNG Seed', required=False)
     parser.add_argument('--evaluate', action='store_true', help='Run trained model in eval mode', default=False)
     parser.add_argument('--slow', action='store_false', help='Run the game at normal speed', default=True)
+    parser.add_argument('--no-render', action='store_true', help='Disable Unity rendering', default=False)
     return parser.parse_args()
 
 
@@ -48,7 +49,7 @@ if __name__ == '__main__':
         seed = torch.manual_seed(args.seed)
 
     # Setup Environment
-    env = UnityEnvironment(file_name="Banana.app")
+    env = UnityEnvironment(file_name="Banana.app", no_graphics=args.no_render)
     brain_name = env.brain_names[0]
     brain = env.brains[brain_name]
 
@@ -85,7 +86,8 @@ if __name__ == '__main__':
             score += reward  # update the score
 
             # Show action
-            print('\rScore: {}\tAction: {}'.format(score, action_strings[action]),  end="")
+            if evaluate:
+                print('\rScore: {}\tAction: {}'.format(score, action_strings[action]),  end="")
             # Learnin' time (sometimes)
             if not evaluate:
                 agent.step(state, action, reward, next_state, done)
@@ -103,7 +105,10 @@ if __name__ == '__main__':
             torch.save(agent.qnetwork_local.state_dict(), args.save_as)
             save_scores(args.save_as[:-4], scores)
         print("\rEpisode {} Score: {:.1f} Avg: {:.2f} Eps: {:.2f}".format(i_episode, score, np.mean(scores[-100:]), epsilon)) #, end="")
-        time.sleep(1)
+
+        if evaluate:
+            time.sleep(1)
+
     if not evaluate:
         save_scores(args.save_as[:-4], scores)
     else:
