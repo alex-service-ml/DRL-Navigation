@@ -45,7 +45,7 @@ class BananAgent:
 
         # Replay memory
         self.memory = memory
-        if not memory:
+        if memory is None:
             self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE)
 
         # Initialize time step (for updating every UPDATE_EVERY steps)

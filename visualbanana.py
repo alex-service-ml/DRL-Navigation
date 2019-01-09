@@ -88,7 +88,7 @@ if __name__ == '__main__':
         print('Running in evaluation mode!')
 
     max_score = 0
-    scores = []
+    scores = 100 * [0]
     for i_episode in range(args.episodes):
         env_info = env.reset(train_mode=args.slow)[brain_name]  # reset the environment
         state = env_info.visual_observations[0]  # get the current state
