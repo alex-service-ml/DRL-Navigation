@@ -127,7 +127,7 @@ if __name__ == '__main__':
                     break
 
         """
-        next_state = np.zeros((args.stack_frames, 84, 84))
+        next_state = state.copy()
         reward = 4 * [0]
         while True:
             # print('state shape:', state.shape)
