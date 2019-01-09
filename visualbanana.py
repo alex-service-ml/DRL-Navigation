@@ -3,6 +3,7 @@ import torch
 import argparse
 import os
 import time
+import platform
 
 from unityagents import UnityEnvironment
 
@@ -13,6 +14,11 @@ action_strings = {
     1: 'v BACKWARD',
     2: '< LEFT    ',
     3: '> RIGHT   '
+}
+
+host_os_banana = {
+    'linux': 'VisualBanana_Linux/Banana.x86_64',
+    'mac': 'VisualBanana.app'
 }
 
 
@@ -60,7 +66,8 @@ if __name__ == '__main__':
         seed = torch.manual_seed(args.seed)
 
     # Setup Environment
-    env = UnityEnvironment(file_name="VisualBanana.app", no_graphics=args.no_render)
+    env = UnityEnvironment(file_name=host_os_banana['linux'] if not platform.mac_ver()[0] else host_os_banana['mac'],
+                           no_graphics=args.no_render)
     brain_name = env.brain_names[0]
     brain = env.brains[brain_name]
 
@@ -140,7 +147,6 @@ if __name__ == '__main__':
             reward = reward[1:] + [env_info.rewards[0]]  # accumulate the reward
             done = env_info.local_done[0]  # see if episode has finished
             score += reward[-1]  # update the score
-            print(reward)
             # cumulative_reward += reward
             # if done and i < args.stack_frames - 1:
                 # End of episode and not enough frames to fill the buffer.
