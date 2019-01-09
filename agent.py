@@ -2,7 +2,7 @@ import numpy as np
 import random
 from collections import namedtuple, deque
 
-from model import BananaNet
+from model import BananaNet, VisualBananaNet
 
 import torch
 import torch.optim as optim
@@ -21,7 +21,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class BananAgent:
     """Interacts with and learns from the environment."""
 
-    def __init__(self, state_size, action_size, memory=None, checkpoint_filename=None):
+    def __init__(self, state_size, action_size, agent_type=BananaNet, memory=None, checkpoint_filename=None):
         """Initialize an Agent object.
 
         Params
@@ -34,12 +34,13 @@ class BananAgent:
         self.action_size = action_size
 
         # Q-Network
-        self.qnetwork_local = BananaNet(state_size, action_size).to(device)
+        print('Agent type:', agent_type)
+        self.qnetwork_local = agent_type(state_size, action_size).to(device)
         if checkpoint_filename:
             print('Loading checkpoint', checkpoint_filename)
             checkpoint = torch.load(checkpoint_filename)
             self.qnetwork_local.load_state_dict(checkpoint)
-        self.qnetwork_target = BananaNet(state_size, action_size).to(device)
+        self.qnetwork_target = agent_type(state_size, action_size).to(device)
         self.optimizer = optim.Adam(self.qnetwork_local.parameters(), lr=LR)
 
         # Replay memory
@@ -92,7 +93,7 @@ class BananAgent:
                     gamma (float): discount factor
                 """
         states, actions, rewards, next_states, dones = experiences
-
+        # print('NEXT STATES:', next_states.shape)
         local_max_action = self.qnetwork_local(next_states).detach().max(1)[1].unsqueeze(1)
 
         outputs = self.qnetwork_target(next_states).detach()
@@ -175,6 +176,7 @@ class ReplayBuffer:
 
     def add(self, state, action, reward, next_state, done):
         """Add a new experience to memory."""
+        # print('ADDING EXPERIENCE TO BUFFER', state.shape, next_state.shape)
         e = self.experience(state, action, reward, next_state, done)
         self.memory.append(e)
 
@@ -195,3 +197,24 @@ class ReplayBuffer:
     def __len__(self):
         """Return the current size of internal memory."""
         return len(self.memory)
+
+
+class VisualBananAgent(BananAgent):
+    def __init__(self, state_size, action_size,  memory=None, checkpoint_filename=None):
+        super().__init__(state_size,
+                         action_size,
+                         agent_type=VisualBananaNet,
+                         memory=memory,
+                         checkpoint_filename=checkpoint_filename)
+
+    def step(self, state, action, reward, next_state, done):
+        # Save experience in replay memory
+        self.memory.add(np.expand_dims(state, 0), action, reward, np.expand_dims(next_state, 0), done)
+
+        # Learn every UPDATE_EVERY time steps.
+        self.t_step = (self.t_step + 1) % UPDATE_EVERY
+        if self.t_step == 0:
+            # If enough samples are available in memory, get random subset and learn
+            if len(self.memory) > BATCH_SIZE:
+                experiences = self.memory.sample()
+                self.double_q_learn(experiences, GAMMA)

@@ -19,6 +19,28 @@ class BananaNet(nn.Module):
         return x
 
 
+class VisualBananaNet(nn.Module):
+
+    def __init__(self, state_size, action_size):
+        super().__init__()
+        print(state_size)
+        print('ASSUMING 84x84x4 INPUT')
+        self.conv1 = nn.Conv2d(state_size[0], 32, 8, stride=4)
+        self.conv2 = nn.Conv2d(32, 64, 4, stride=2)
+        self.conv3 = nn.Conv2d(64, 64, 3, stride=1)
+        self.fc1 = nn.Linear(3136, 512)  # TODO: Hard-coded based on DQN paper
+        self.fc2 = nn.Linear(512, action_size)
+        pass
+
+    def forward(self, frame_stack):
+        x = F.relu(self.conv1(frame_stack))
+        x = F.relu(self.conv2(x))
+        x = F.relu(self.conv3(x))
+        x = F.relu(self.fc1(x.reshape(x.size(0), -1)))  # TODO: Verify reshape function
+        x = self.fc2(x)
+        return x
+
+
 class BananaResNet(nn.Module):
     def __init__(self, state_size, action_size):
         super(BananaResNet, self).__init__()
