@@ -1,3 +1,4 @@
+import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -68,3 +69,15 @@ class BananaResNet(nn.Module):
         x = self.outfc(x)
 
         return x
+
+
+class PERLoss(nn.Module):
+
+    def __init__(self):
+        super().__init__()
+
+    def forward(self, input, target, weights):
+        ret = (input - target) ** 2
+        ret = weights * ret
+        ret = torch.mean(ret)
+        return ret

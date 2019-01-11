@@ -7,6 +7,7 @@ import time
 from unityagents import UnityEnvironment
 
 from agent import BananAgent, ReplayBuffer
+from memory import Memory
 
 action_strings = {
     0: '^ FORWARD ',
@@ -29,6 +30,7 @@ def parse_arguments():
     parser.add_argument('--eps-min', type=float, help='Minimum epsilon value', default=0.01, required=False)
     parser.add_argument('--seed', type=int, help='RNG Seed', required=False)
     parser.add_argument('--evaluate', action='store_true', help='Run trained model in eval mode', default=False)
+    parser.add_argument('--per-b', type=float, help='Initial value of PER hyperparameter b', default=0.4)
     parser.add_argument('--slow', action='store_false', help='Run the game at normal speed', default=True)
     parser.add_argument('--no-render', action='store_true', help='Disable Unity rendering', default=False)
     return parser.parse_args()
@@ -56,8 +58,10 @@ if __name__ == '__main__':
     # Setup Agent and Experience Replay Buffer
     state_size = brain.vector_observation_space_size
     action_size = brain.vector_action_space_size
-    memory = ReplayBuffer(action_size, args.memory, args.batch_size)
-    agent = BananAgent(state_size, action_size, memory=memory, checkpoint_filename=args.checkpoint if args.checkpoint and os.path.exists(args.checkpoint) else None)
+    memory = Memory(args.memory, args.batch_size, n=args.memory, b=args.per_b)
+    agent = BananAgent(state_size, action_size, memory=memory,
+                       checkpoint_filename=args.checkpoint if args.checkpoint and os.path.exists(
+                           args.checkpoint) else None)
     print('Number of actions:', action_size)
     print('State Features: ', state_size)
 
@@ -65,12 +69,14 @@ if __name__ == '__main__':
     epsilon = args.eps
     epsilon_decay = args.eps_decay
     epsilon_mininum = args.eps_min
+    per_b_increment = (1. - args.per_b) / args.episodes
+
     evaluate = args.evaluate
     if evaluate:
         print('Running in evaluation mode!')
 
     max_score = 0
-    scores = []
+    scores = 100 * [0]
     for i_episode in range(args.episodes):
         env_info = env.reset(train_mode=args.slow)[brain_name]  # reset the environment
         state = env_info.vector_observations[0]  # get the current state
@@ -87,7 +93,7 @@ if __name__ == '__main__':
 
             # Show action
             if evaluate:
-                print('\rScore: {}\tAction: {}'.format(score, action_strings[action]),  end="")
+                print('\rScore: {}\tAction: {}'.format(score, action_strings[action]), end="")
             # Learnin' time (sometimes)
             if not evaluate:
                 agent.step(state, action, reward, next_state, done)
@@ -96,7 +102,8 @@ if __name__ == '__main__':
             if done:  # exit loop if episode finished
                 break
 
-        epsilon = max(epsilon_mininum, epsilon*epsilon_decay)
+        epsilon = max(epsilon_mininum, epsilon * epsilon_decay)
+        memory.b = min(1., memory.b + per_b_increment)  # TODO: Integrate better with agent
 
         scores += [score]
         if np.mean(scores[-100:]) > max_score and not evaluate:
@@ -104,7 +111,8 @@ if __name__ == '__main__':
             print("\nNew max score! {:.1f}".format(max_score))
             torch.save(agent.qnetwork_local.state_dict(), args.save_as)
             save_scores(args.save_as[:-4], scores)
-        print("\rEpisode {} Score: {:.1f} Avg: {:.2f} Eps: {:.2f}".format(i_episode, score, np.mean(scores[-100:]), epsilon)) #, end="")
+        print("\rEpisode {} Score: {:.1f} Avg: {:.2f} Eps: {:.2f}".format(i_episode, score, np.mean(scores[-100:]),
+                                                                          epsilon))  # , end="")
 
         if evaluate:
             time.sleep(1)
@@ -115,4 +123,3 @@ if __name__ == '__main__':
         save_scores(args.save_as[:-4] + '_eval', scores)
     env.close()
     print('Done!')
-

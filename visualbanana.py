@@ -8,6 +8,7 @@ import platform
 from unityagents import UnityEnvironment
 
 from agent import VisualBananAgent, ReplayBuffer
+from memory import Memory
 
 action_strings = {
     0: '^ FORWARD ',
@@ -45,6 +46,7 @@ def parse_arguments():
     parser.add_argument('--eps-min', type=float, help='Minimum epsilon value', default=0.01, required=False)
     parser.add_argument('--seed', type=int, help='RNG Seed', required=False)
     parser.add_argument('--evaluate', action='store_true', help='Run trained model in eval mode', default=False)
+    parser.add_argument('--per-b', type=float, help='Initial value of PER hyperparameter b', default=0.4)
     parser.add_argument('--slow', action='store_false', help='Run the game at normal speed', default=True)
     parser.add_argument('--no-render', action='store_true', help='Disable Unity rendering', default=False)
     parser.add_argument('--stack-frames', type=int, help='Number of frames to pass to the DQN', default=4)
@@ -74,7 +76,7 @@ if __name__ == '__main__':
     # Setup Agent and Experience Replay Buffer
     state_size = (args.stack_frames, 84, 84)  # TODO: Programmatically determine
     action_size = brain.vector_action_space_size
-    memory = ReplayBuffer(action_size, args.memory, args.batch_size)
+    memory = Memory(args.memory, args.batch_size, n=args.memory, b=args.per_b)
     agent = VisualBananAgent(state_size, action_size, memory=memory, checkpoint_filename=args.checkpoint if args.checkpoint and os.path.exists(args.checkpoint) else None)
     print('Number of actions:', action_size)
     print('State Features: ', state_size)
@@ -83,6 +85,8 @@ if __name__ == '__main__':
     epsilon = args.eps
     epsilon_decay = args.eps_decay
     epsilon_mininum = args.eps_min
+    per_b_increment = (1. - args.per_b) / args.episodes
+
     evaluate = args.evaluate
     if evaluate:
         print('Running in evaluation mode!')
@@ -168,7 +172,8 @@ if __name__ == '__main__':
                 break
 
         epsilon = max(epsilon_mininum, epsilon*epsilon_decay)
-
+        memory.b = min(1., memory.b + per_b_increment)  # TODO: Integrate better with agent
+        
         scores += [score]
         if np.mean(scores[-100:]) > max_score and not evaluate:
             max_score = np.mean(scores[-100:])

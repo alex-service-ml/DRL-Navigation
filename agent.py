@@ -1,11 +1,14 @@
 import numpy as np
 import random
+import heapq
 from collections import namedtuple, deque
-
-from model import BananaNet, VisualBananaNet
 
 import torch
 import torch.optim as optim
+import torch.nn.functional as F
+
+from model import BananaNet, VisualBananaNet, PERLoss
+from memory import Memory
 
 BUFFER_SIZE = int(1e5)  # replay buffer size
 BATCH_SIZE = 64  # minibatch size
@@ -21,7 +24,7 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 class BananAgent:
     """Interacts with and learns from the environment."""
 
-    def __init__(self, state_size, action_size, agent_type=BananaNet, memory=None, checkpoint_filename=None):
+    def __init__(self, state_size, action_size, agent_type=BananaNet, memory=None, checkpoint_filename=None, n=1e5, b=0.5):
         """Initialize an Agent object.
 
         Params
@@ -46,7 +49,7 @@ class BananAgent:
         # Replay memory
         self.memory = memory
         if memory is None:
-            self.memory = ReplayBuffer(action_size, BUFFER_SIZE, BATCH_SIZE)
+            self.memory = Memory(BUFFER_SIZE, BATCH_SIZE)
 
         # Initialize time step (for updating every UPDATE_EVERY steps)
         self.t_step = 0
@@ -59,9 +62,9 @@ class BananAgent:
         self.t_step = (self.t_step + 1) % UPDATE_EVERY
         if self.t_step == 0:
             # If enough samples are available in memory, get random subset and learn
-            if len(self.memory) > BATCH_SIZE:
-                experiences = self.memory.sample()
-                self.double_q_learn(experiences, GAMMA)
+            # if len(self.memory) > BATCH_SIZE:  # TODO: Figure out how to work with PER memory
+            indices, experiences = self.memory.sample()
+            self.double_q_learn(indices, experiences, GAMMA)
 
     def act(self, state, eps=0., evaluate=False):
         """Returns actions for given state as per current policy.
@@ -84,7 +87,7 @@ class BananAgent:
         else:
             return random.choice(np.arange(self.action_size))
 
-    def double_q_learn(self, experiences, gamma):
+    def double_q_learn(self, indices, experiences, gamma):
         """Update value parameters using given batch of experience tuples.
 
                 Params
@@ -92,23 +95,43 @@ class BananAgent:
                     experiences (Tuple[torch.Variable]): tuple of (s, a, r, s', done) tuples
                     gamma (float): discount factor
                 """
-        states, actions, rewards, next_states, dones = experiences
+
+        states, actions, rewards, next_states, dones, weights = experiences  # note that priorities = (p + e) ** a
+
+
         # print('NEXT STATES:', next_states.shape)
         local_max_action = self.qnetwork_local(next_states).detach().max(1)[1].unsqueeze(1)
 
-        outputs = self.qnetwork_target(next_states).detach()
-        target_max = outputs.gather(1, local_max_action)
+        target_outputs = self.qnetwork_target(next_states).detach()
+        target_max = target_outputs.gather(1, local_max_action)
         targets = rewards + gamma * target_max * (1 - dones)
 
         # forward pass local network
         output = self.qnetwork_local(states).gather(1, actions)
 
+        # Calculate and update priorities error
+        with torch.no_grad():
+            d = targets - output
+
+            # Update transition priorities and (maybe?) TODO update max error
+            p = d.abs()
+            for index, priority in zip(indices, p):
+                self.memory.update(index, priority)
+                # TODO: Verify
+
+            # Modify gradient
+
         # calculate loss & gradient for local network
         self.optimizer.zero_grad()
-        criterion = torch.nn.MSELoss()
-        loss = criterion(output, targets)
+        criterion = PERLoss()
+        loss = criterion(output, targets, weights)
+
+        # TODO: PER Loss
+        # criterion = PERLoss(self.n)
+        # loss = criterion(output, targets, p_i, self.b)  # TODO: Calculate & pass PER params
         loss.backward()
         self.optimizer.step()
+
 
         # ------------------- update target network ------------------- #
         self.soft_update(self.qnetwork_local, self.qnetwork_target, TAU)
